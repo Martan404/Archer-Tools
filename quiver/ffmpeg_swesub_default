@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Set swedish subtitles as the default in movie files
 
+set -euo pipefail
 INPUT="$1"
 
 if [[ -z "${INPUT:-}" ]]; then

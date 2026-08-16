@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Set faststart flag for movie files, for streaming
 
+set -euo pipefail
 INPUT="$1"
 
 if [[ -z "${INPUT:-}" ]]; then
