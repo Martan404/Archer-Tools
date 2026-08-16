@@ -1,0 +1,72 @@
+#!/bin/bash
+# Use Kompare to check and merge .pacnew files
+set -e
+
+if ! sudo -v; then
+	echo "root authentication failed. Exiting"
+	exit 1
+fi
+
+pacnew_files=""
+pacsave_files=""
+
+while IFS= read -r file; do
+	case "$file" in
+		*.pacnew)
+			pacnew_files+="$file"$'\n'
+			;;
+		*.pacsave)
+			pacsave_files+="$file"$'\n'
+			;;
+	esac
+done < <(/usr/bin/pacdiff --output)
+
+# Process .pacnew files
+if [ -n "$pacnew_files" ]; then
+	while IFS= read -r pacnew_file; do
+		[ -z "$pacnew_file" ] && continue
+
+		echo "$pacnew_file"
+
+		original="${pacnew_file/.pacnew/}"
+		tmpdir=$(mktemp -d)
+		trap 'rm -rf "$tmpdir"' EXIT
+
+		# Make user-owned copies
+		sudo cp "$pacnew_file" "$tmpdir/pacnew"
+		sudo cp "$original" "$tmpdir/original"
+		sudo chown "$USER:$USER" "$tmpdir/pacnew" "$tmpdir/original"
+
+		# Open the copies in Kompare
+		QT_LOGGING_RULES="kf.kio.*=false" /usr/bin/kompare \
+			"$tmpdir/pacnew" "$tmpdir/original"
+
+		# Copy the edited version back to the real config
+		sudo cp "$tmpdir/original" "$original"
+
+		# Clean up
+		trap - EXIT
+		rm -rf "$tmpdir"
+		sudo rm -- "$pacnew_file"
+	done <<< "$pacnew_files"
+else
+	echo "No .pacnew files found"
+fi
+
+# Handle .pacsave files
+if [ -n "$pacsave_files" ]; then
+	echo
+	echo ".pacsave files found:"
+	echo "$pacsave_files"
+
+	read -rp "Delete these .pacsave files? (Y/n) " delete_pacsave
+
+	if [[ "$delete_pacsave" = "y" || "Y" ]]; then
+		while IFS= read -r pacsave_file; do
+			[ -z "$pacsave_file" ] && continue
+
+			echo "Deleting $pacsave_file"
+			sudo rm -- "$pacsave_file"
+		done <<< "$pacsave_files"
+	fi
+fi

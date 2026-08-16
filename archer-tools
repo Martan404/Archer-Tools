@@ -1,0 +1,182 @@
+#!/bin/bash
+
+# Archer Tools
+# Install tools and scripts from ./quiver/ into $HOME/.local/bin/
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+QUIVER="${SCRIPT_DIR}/quiver"
+BIN_DIR="${HOME}/.local/bin"
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+show_info() {
+    echo "$(tput setaf 4)$(tput bold)> $*$(tput sgr0)"
+}
+export -f show_info
+
+# ---------------------------------------------------------------------------
+# Check quiver
+# ---------------------------------------------------------------------------
+
+if [[ ! -d "$QUIVER" ]]; then
+    echo "Error: Quiver directory not found: $QUIVER"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Source bash-tui-toolkit
+# ---------------------------------------------------------------------------
+
+if [[ ! -f "$SCRIPT_DIR/bash-tui-toolkit.bash" ]]; then
+    show_info "Downloading bash-tui-toolkit..."
+
+    if ! curl -fsSL https://bash-tui-toolkit.timo-reymann.de/latest/bundle.bash -o "$SCRIPT_DIR/bash-tui-toolkit.bash"; then
+        echo "Error: Failed downloading bash-tui-toolkit"
+        exit 1
+    fi
+fi
+
+source "$SCRIPT_DIR/bash-tui-toolkit.bash"
+
+# ---------------------------------------------------------------------------
+# Build script list
+# ---------------------------------------------------------------------------
+
+modules=()
+names=()
+descriptions=()
+display=()
+
+while IFS= read -r -d '' file; do
+    name="$(grep -m1 '^# NAME:' "$file" | sed 's/^# NAME: //')"
+    [[ -z "$name" ]] && name="$(basename "$file")"
+
+    desc="$(grep -m1 '^[[:space:]]*#[[:space:]]*DESC:' "$file" | sed -E 's/^[[:space:]]*#[[:space:]]*DESC:[[:space:]]*//')"
+    [[ -z "$desc" ]] && desc="$(sed -n '2p' "$file" | sed -n '/^[[:space:]]*#/s/^[[:space:]]*#[[:space:]]*//p')"
+    [[ -z "$desc" ]] && desc="No description available"
+
+    modules+=("$file")
+    names+=("$name")
+    descriptions+=("$desc")
+    display+=("${name} - ${desc}")
+done < <(find "$QUIVER" -maxdepth 1 -type f -print0 | sort -z)
+
+if [[ "${#modules[@]}" -eq 0 ]]; then
+    echo "Error: No scripts found in $QUIVER"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
+
+clear
+
+echo -e "
+-------------------------------------------------------------------------
+$(tput setaf 4)
+             █████╗ ██████╗  ██████╗██╗  ██╗███████╗██████╗
+            ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔══██╗
+            ███████║██████╔╝██║     ███████║█████╗  ██████╔╝
+            ██╔══██║██╔══██╗██║     ██╔══██║██╔══╝  ██╔══██╗
+            ██║  ██║██║  ██║╚██████╗██║  ██║███████╗██║  ██║
+            ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+$(tput sgr0)
+-------------------------------------------------------------------------
+                       Tools and Script Installer
+-------------------------------------------------------------------------
+"
+
+# ---------------------------------------------------------------------------
+# Select scripts
+# ---------------------------------------------------------------------------
+
+selected="$(checkbox "Select scripts to install (Space)" "${display[@]}")"
+
+echo
+
+if [[ -z "$selected" ]]; then
+    echo "No scripts selected."
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Show confirmation
+# ---------------------------------------------------------------------------
+
+echo "The following scripts will be installed:"
+echo
+
+for index in $selected; do
+    module="${modules[$index]}"
+    desc="${descriptions[$index]}"
+    filename="$(basename "$module")"
+
+    if [[ -e "$BIN_DIR/$filename" ]]; then
+        echo "  $(tput setaf 3)UPDATE$(tput sgr0)  $filename"
+    else
+        echo "  $(tput setaf 2)INSTALL$(tput sgr0) $filename"
+    fi
+
+    echo "           $desc"
+done
+
+echo
+echo "Destination: $BIN_DIR"
+echo
+
+confirmed="$(confirm "Install selected scripts?")"
+echo
+
+if [[ "$confirmed" != 1 ]]; then
+    show_info "Installation cancelled"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Install
+# ---------------------------------------------------------------------------
+
+mkdir -p "$BIN_DIR"
+
+for index in $selected; do
+    module="${modules[$index]}"
+    filename="$(basename "$module")"
+    destination="$BIN_DIR/$filename"
+
+    echo "-------------------------------------------------------------------------"
+    show_info "Installing $filename"
+
+    cp -f "$module" "$destination"
+    chmod +x "$destination"
+
+    echo "$(tput setaf 2)$(tput bold)✓ $filename installed$(tput sgr0)"
+done
+
+# ---------------------------------------------------------------------------
+# PATH check
+# ---------------------------------------------------------------------------
+
+echo
+echo "-------------------------------------------------------------------------"
+
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    show_info "$BIN_DIR is not currently in your PATH."
+
+    echo
+    echo "Add this to your shell configuration:"
+    echo
+    echo '    export PATH="$HOME/.local/bin:$PATH"'
+    echo
+else
+    show_info "$BIN_DIR is already in PATH"
+fi
+
+show_info "Installation complete!"
