@@ -1,6 +1,6 @@
 # Archer Tools
 
-Installs tools and scripts from ./quiver/ into $HOME/.local/bin/
+Install tools and scripts from ./quiver/ into $HOME/.local/bin/
 
 Run this in your terminal to get started
 ```
