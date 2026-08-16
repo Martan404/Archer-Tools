@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Extract cover files from .mp3 and .m4b files
+
+set -euo pipefail
+ROOT="${1:-.}"
+
+find "$ROOT" -type f \( -iname "*.mp3" -o -iname "*.m4b" \) -print0 |
+while IFS= read -r -d '' file; do
+    dir="$(dirname "$file")"
+    cover="$dir/cover.jpg"
+
+    # Skip if we already extracted a cover for this folder
+    [ -f "$cover" ] && continue
+
+    echo "Extracting cover from: $file"
+
+    { 
+        timeout --signal=INT --kill-after=2s 2s ffmpeg -nostdin -loglevel error -y -i "$file" -frames:v 1 -c:v copy "$cover"
+    } 2>/dev/null || true
+
+    [ ! -f "$cover" ] && echo "No cover found: $file"
+done

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Extract all rar files in the directory
+
+MAIN_DIR="."
+
+find "$MAIN_DIR" -type f -iname "*.rar" -print0 | sort -z | while IFS= read -r -d '' rarfile; do
+    echo "Extracting: $rarfile"
+    #sub_dir="$(dirname "$rarfile")"
+    unrar x -o+ "$rarfile" "$MAIN_DIR/"
+done
+
+echo "All .rar files extracted "
