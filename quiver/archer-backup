@@ -13,8 +13,8 @@ cyan='\033[0;36m'
 clear='\033[0m' # Reset to default color
 
 # Get the directory and filename of the script
-script_dir=$(dirname "$(realpath "$0")")
-script_name=$(basename "$0")
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+SCRIPT_NAME=$(basename "$0")
 
 if [ "$EUID" -eq 0 ]; then
     echo -e "[${red} Warning ${clear}] Running as root"
@@ -23,7 +23,7 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 show_help() {
-    echo -e "Usage: $script_name [options]"
+    echo -e "Usage: $SCRIPT_NAME [options]"
     echo -e ""
     echo -e "Options:"
     echo -e "  -b, --backup [configuration_file]  Create a backup using the specified configuration file"
@@ -34,6 +34,7 @@ show_help() {
 
 backup() {
     local config_file="$1"
+
 
     # Check if the configuration file exists in the provided path
     if [[ ! -e "$config_file" ]]; then
@@ -47,17 +48,23 @@ backup() {
 
     # Set name for archive if none is provided
     [[ $NAME = "" ]] && NAME="Home-Backup"
-    [[ -f "$NAME.tar.gz" ]] && exists=true
+    [[ -f "$NAME.tar" ]] && rm -f "$NAME.tar"
+    TAR_FILE="$NAME.tar"
 
     # Helper function
     add_to_archive() {
         local path="$1"
+        
+
         if [[ -e "$path" ]]; then
-            local relative_path
-            relative_path=$(realpath --relative-to="$HOME" "$path")
+            local relative_path=$(realpath --relative-to="$HOME" "$path")
 
             echo -e "[${blue} Add ${clear}] $path added to archive"
-            tar --append --file="$NAME.tar.gz" --directory="$HOME" --transform="s|^|home/|" "$relative_path"
+            if [[ ! -f "$TAR_FILE" ]]; then
+                tar --create --file="$TAR_FILE" --directory="$HOME" --transform="s|^|home/|" "$relative_path"
+            else
+                tar --append --file="$TAR_FILE" --directory="$HOME" --transform="s|^|home/|" "$relative_path"
+            fi
         else
             echo -e "[${yellow} Skip ${clear}] $path does not exist"
         fi
@@ -82,16 +89,12 @@ backup() {
     done
 
     # Include the configuration file in the backup archive
-    tar --append --file="$NAME.tar.gz" -- "$config_file"
+    tar --append --file="$TAR_FILE" -- "$config_file"
 
     # Add the script itself to the archive
-    tar --append --file="$NAME.tar.gz" --directory="$script_dir" --transform="s|^$script_dir/||" "$script_name"
+    tar --append --file="$TAR_FILE" --directory="$SCRIPT_DIR" --transform="s|^$SCRIPT_DIR/||" "$SCRIPT_NAME"
 
-    if [[ $exists == true ]]; then
-        echo -e "[${green} Done ${clear}] Added new files to $(realpath "./$NAME.tar.gz")"
-    else
-        echo -e "[${green} Done ${clear}] Archive created at $(realpath "./$NAME.tar.gz")"
-    fi
+    echo -e "[${green} Done ${clear}] Archive created at $(realpath "./$TAR_FILE")"
 }
 
 restore() {
@@ -115,7 +118,7 @@ create_config() {
     local config_file="./$config_name.conf"
 
     cat > "$config_file" <<EOL
-# $script_name configuration file
+# $SCRIPT_NAME configuration file
 # Any array named _INCLUDE will be checked
 # See examples at bottom
 # Paths can be both files and directories
