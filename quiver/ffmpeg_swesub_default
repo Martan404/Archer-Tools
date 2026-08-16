@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$1"
+
+if [[ -z "${INPUT:-}" ]]; then
+  echo "Usage: $0 <input_file>"
+  exit 1
+fi
+
+DIR=$(dirname -- "$INPUT")
+FILE=$(basename -- "$INPUT")
+EXT="${FILE##*.}"
+EXT="${EXT,,}"
+NAME="${FILE%.*}"
+
+case "$EXT" in
+  mp4|mkv|avi)
+    ;;
+  *)
+    echo "Unsupported file type: .$EXT"
+    echo "Supported types: mp4, mkv, avi"
+    exit 0
+    ;;
+esac
+
+mkdir -p "${DIR}/swe-default"
+OUTPUT="${DIR}/swe-default/${NAME}.${EXT}"
+
+# Get subtitle streams (absolute index + language)
+mapfile -t SUB_STREAMS < <(
+  ffprobe -v error \
+    -select_streams s \
+    -show_entries stream=index:stream_tags=language \
+    -of csv=p=0 "$INPUT"
+)
+
+SWE_SUB=""
+OTHER_SUBS=()
+
+for line in "${SUB_STREAMS[@]}"; do
+  INDEX="${line%%,*}"
+  LANG="${line#*,}"
+
+  if [[ "$LANG" == "swe" && -z "$SWE_SUB" ]]; then
+    SWE_SUB="$INDEX"
+  else
+    OTHER_SUBS+=("$INDEX")
+  fi
+done
+
+if [[ -z "$SWE_SUB" ]]; then
+  echo "No Swedish (swe) subtitle found."
+  exit 1
+fi
+
+echo "Swedish subtitle stream index: $SWE_SUB"
+
+MAP_ARGS=()
+MAP_ARGS+=("-map" "0:v")
+MAP_ARGS+=("-map" "0:a")
+MAP_ARGS+=("-map" "0:$SWE_SUB")
+
+for idx in "${OTHER_SUBS[@]}"; do
+  MAP_ARGS+=("-map" "0:$idx")
+done
+
+ffmpeg -i "$INPUT" \
+  "${MAP_ARGS[@]}" \
+  -c copy \
+  -disposition:s 0 \
+  -disposition:s:0 default \
+  "$OUTPUT"
+
+echo "Done. Swedish subtitle is now first and default."

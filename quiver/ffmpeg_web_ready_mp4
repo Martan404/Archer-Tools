@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$1"
+
+if [[ -z "${INPUT:-}" ]]; then
+  echo "Usage: $0 <file.mp4>"
+  exit 1
+fi
+
+if [[ "${INPUT##*.}" != "mp4" ]]; then
+  echo "Not an MP4 file, skipping."
+  exit 0
+fi
+
+DIR=$(dirname -- "$INPUT")
+FILE=$(basename -- "$INPUT")
+NAME="${FILE%.*}"
+
+OUTPUT="${DIR}/${NAME}_web.mp4"
+
+ffmpeg -i "$INPUT" -map 0 -c copy -movflags +faststart "$OUTPUT"
+
+echo "Web-ready MP4 created:"
+echo "  $OUTPUT"
