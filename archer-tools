@@ -19,7 +19,7 @@ export -f show_info
 
 if [[ ! -d "$QUIVER" ]]; then
     show_info "Downloading quiver..."
-    curl -L https://github.com/Martan404/Archer/archive/main.tar.gz | tar -xz --strip-components=1 -C "$SCRIPT_DIR"
+    curl -L https://github.com/Martan404/Archer-Tools/archive/main.tar.gz | tar -xz --strip-components=1 -C "$SCRIPT_DIR"
 fi
 
 if [[ ! -f "$SCRIPT_DIR/bash-tui-toolkit.bash" ]]; then
