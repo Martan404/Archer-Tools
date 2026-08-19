@@ -7,6 +7,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "$SCRIPT_DIR"; sleep 5
+if [[ $SCRIPT_DIR = "" ]]; then
+    SCRIPT_DIR="$(pwd)"
+fi
+echo "$SCRIPT_DIR"; sleep 5
 QUIVER="${SCRIPT_DIR}/quiver"
 BIN_DIR="${HOME}/.local/bin"
 
