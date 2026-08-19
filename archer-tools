@@ -134,15 +134,12 @@ fi
 
 selected="$(checkbox "Select scripts to install (Space)" "${display[@]}")"
 
-echo
-
 if [[ -z "$selected" ]]; then
     echo "No scripts selected"
     exit 1
 fi
 
 echo "The following scripts will be installed:"
-echo
 
 for index in $selected; do
     module="${modules[$index]}"
@@ -155,12 +152,9 @@ for index in $selected; do
     fi
 done
 
-echo
 echo "Destination: $BIN_DIR"
-echo
 
 confirmed="$(confirm "Install selected scripts?")"
-echo
 
 if [[ "$confirmed" != 1 ]]; then
     show_info "Installation cancelled"
@@ -173,9 +167,6 @@ for index in $selected; do
     module="${modules[$index]}"
     filename="$(basename "$module")"
     destination="$BIN_DIR/$filename"
-
-    echo "-------------------------------------------------------------------------"
-    show_info "Installing $filename"
 
     cp -f "$module" "$destination"
     chmod +x "$destination"
