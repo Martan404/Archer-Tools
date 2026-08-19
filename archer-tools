@@ -5,25 +5,85 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[[ $SCRIPT_DIR = "/dev/fd" ]] && SCRIPT_DIR="$(pwd)"
-QUIVER="${SCRIPT_DIR}/quiver"
-BIN_DIR="${HOME}/.local/bin"
+REPO="Martan404/Archer-Tools"
+BRANCH="main"
+
+SCRIPT_NAME="$(basename "$0")"
+TMP_DIR="$(mktemp -d)"
+TEMP_RUN=false
+SKIP_UPDATE=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --no-update|--local|--debug|-n|-l|-d) SKIP_UPDATE=true ;;
+        --temp|--tmp|-p) TEMP_RUN=true ;;
+    esac
+done
+
+if [[ "$TEMP_RUN" == true ]]; then
+    SCRIPT_DIR="$TMP_DIR/$SCRIPT_NAME"
+    mkdir -p "$SCRIPT_DIR"
+    curl -fsSL "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" -o "$TMP_DIR/repo.tar.gz"
+    tar -xzf "$TMP_DIR/repo.tar.gz" --strip-components=1 -C "$SCRIPT_DIR"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    [[ $SCRIPT_DIR = "/dev/fd" ]] && SCRIPT_DIR="$(pwd)/Archer-Tools" && mkdir $SCRIPT_DIR
+fi
+
+QUIVER="$SCRIPT_DIR/quiver"
+BIN_DIR="$HOME/.local/bin"
+
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 show_info() {
     echo "$(tput setaf 4)$(tput bold)> $*$(tput sgr0)"
 }
+
 export -f show_info
 
-if [[ ! -d "$QUIVER" ]]; then
-    show_info "Downloading quiver..."
-    curl -L https://github.com/Martan404/Archer-Tools/archive/main.tar.gz | tar -xz --strip-components=1 -C "$SCRIPT_DIR"
+if [[ "$SKIP_UPDATE" == false && "$TEMP_RUN" == false ]]; then
+    declare -A repo_files
+    declare -A local_files
+
+    show_info "Updating Archer Tools..."
+
+    mkdir -p "$TMP_DIR/repo"
+    curl -fsSL "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" -o "$TMP_DIR/repo.tar.gz"
+    tar -xzf "$TMP_DIR/repo.tar.gz" --strip-components=1 -C "$TMP_DIR/repo"
+
+    while IFS= read -r -d '' file; do
+        relative="${file#"$TMP_DIR/repo/"}"
+        repo_files["$relative"]=1
+    done < <(find "$TMP_DIR/repo" -type f -print0)
+
+    while IFS= read -r -d '' file; do
+        relative="${file#"$SCRIPT_DIR/"}"
+        local_files["$relative"]=1
+    done < <(find "$SCRIPT_DIR" -path "$SCRIPT_DIR/.git" -prune -o -type f -print0)
+
+    for file in "${!local_files[@]}"; do
+        if [[ -z "${repo_files[$file]}" && "$file" != "$SCRIPT_NAME" ]]; then
+            rm -f "$SCRIPT_DIR/$file"
+        fi
+    done
+
+    while IFS= read -r -d '' file; do
+        relative="${file#"$TMP_DIR/repo/"}"
+        [[ "$relative" == "$SCRIPT_NAME" ]] && continue
+        mkdir -p "$SCRIPT_DIR/$(dirname "$relative")"
+        cp -f "$file" "$SCRIPT_DIR/$relative"
+    done < <(find "$TMP_DIR/repo" -type f -print0)
+
+    if [[ -f "$TMP_DIR/repo/$SCRIPT_NAME" ]]; then
+        cp -f "$TMP_DIR/repo/$SCRIPT_NAME" "$SCRIPT_DIR/$SCRIPT_NAME"
+        chmod +x "$SCRIPT_DIR/$SCRIPT_NAME"
+    fi
 fi
 
 if [[ ! -f "$SCRIPT_DIR/bash-tui-toolkit.bash" ]]; then
     show_info "Downloading bash-tui-toolkit..."
 
-    if ! curl -fsSL https://bash-tui-toolkit.timo-reymann.de/latest/bundle.bash -o "$SCRIPT_DIR/bash-tui-toolkit.bash"; then
+    if ! curl -fsSL "https://bash-tui-toolkit.timo-reymann.de/latest/bundle.bash" -o "$SCRIPT_DIR/bash-tui-toolkit.bash"; then
         echo "Error: Failed downloading bash-tui-toolkit"
         exit 1
     fi
@@ -31,30 +91,10 @@ fi
 
 source "$SCRIPT_DIR/bash-tui-toolkit.bash"
 
-# Build script list
 modules=()
 names=()
 descriptions=()
 display=()
-
-while IFS= read -r -d '' file; do
-    name="$(grep -m1 '^# NAME:' "$file" | sed 's/^# NAME: //')"
-    [[ -z "$name" ]] && name="$(basename "$file")"
-
-    desc="$(grep -m1 '^[[:space:]]*#[[:space:]]*DESC:' "$file" | sed -E 's/^[[:space:]]*#[[:space:]]*DESC:[[:space:]]*//')"
-    [[ -z "$desc" ]] && desc="$(sed -n '2p' "$file" | sed -n '/^[[:space:]]*#/s/^[[:space:]]*#[[:space:]]*//p')"
-    [[ -z "$desc" ]] && desc="No description available"
-
-    modules+=("$file")
-    names+=("$name")
-    descriptions+=("$desc")
-    display+=("${name} - ${desc}")
-done < <(find "$QUIVER" -maxdepth 1 -type f -print0 | sort -z)
-
-if [[ "${#modules[@]}" -eq 0 ]]; then
-    echo "Error: No scripts found in $QUIVER"
-    exit 1
-fi
 
 clear
 
@@ -73,29 +113,45 @@ $(tput sgr0)
 -------------------------------------------------------------------------
 "
 
-# Select scripts
+while IFS= read -r -d '' file; do
+    name="$(grep -m1 '^# NAME:' "$file" | sed 's/^# NAME: //')"
+    [[ -z "$name" ]] && name="$(basename "$file")"
+
+    desc="$(grep -m1 '^[[:space:]]*#[[:space:]]*DESC:' "$file" | sed -E 's/^[[:space:]]*#[[:space:]]*DESC:[[:space:]]*//')"
+    [[ -z "$desc" ]] && desc="$(sed -n '2p' "$file" | sed -n '/^[[:space:]]*#/s/^[[:space:]]*#[[:space:]]*//p')"
+    [[ -z "$desc" ]] && desc="No description available"
+
+    modules+=("$file")
+    names+=("$name")
+    descriptions+=("$desc")
+    display+=("$name - $desc")
+done < <(find "$QUIVER" -maxdepth 1 -type f -print0 | sort -z)
+
+if [[ "${#modules[@]}" -eq 0 ]]; then
+    echo "Error: No scripts found in $QUIVER"
+    exit 1
+fi
+
 selected="$(checkbox "Select scripts to install (Space)" "${display[@]}")"
 
 echo
 
 if [[ -z "$selected" ]]; then
-    echo "No scripts selected."
+    echo "No scripts selected"
     exit 1
 fi
 
-# Show confirmation
 echo "The following scripts will be installed:"
 echo
 
 for index in $selected; do
     module="${modules[$index]}"
-    desc="${descriptions[$index]}"
     filename="$(basename "$module")"
 
     if [[ -e "$BIN_DIR/$filename" ]]; then
-        echo "  $(tput setaf 3)UPDATE$(tput sgr0)  $filename"
+        echo "  $(tput setaf 3)UPDATE$(tput sgr0)   $filename"
     else
-        echo "  $(tput setaf 2)INSTALL$(tput sgr0) $filename"
+        echo "  $(tput setaf 2)INSTALL$(tput sgr0)  $filename"
     fi
 done
 
@@ -111,7 +167,6 @@ if [[ "$confirmed" != 1 ]]; then
     exit 0
 fi
 
-# Install
 mkdir -p "$BIN_DIR"
 
 for index in $selected; do
@@ -128,10 +183,8 @@ for index in $selected; do
     echo "$(tput setaf 2)$(tput bold)✓ $filename installed$(tput sgr0)"
 done
 
-# PATH check
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     show_info "$BIN_DIR is not currently in your PATH."
-
     echo
     echo "Add this to your $HOME/.bashrc file:"
     echo
