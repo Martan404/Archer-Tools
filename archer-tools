@@ -12,27 +12,15 @@ BIN_DIR="${HOME}/.local/bin"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 show_info() {
     echo "$(tput setaf 4)$(tput bold)> $*$(tput sgr0)"
 }
 export -f show_info
 
-# ---------------------------------------------------------------------------
-# Check quiver
-# ---------------------------------------------------------------------------
-
 if [[ ! -d "$QUIVER" ]]; then
-    echo "Error: Quiver directory not found: $QUIVER"
-    exit 1
+    show_info "Downloading quiver..."
+    curl -L https://github.com/Martan404/Archer/archive/main.tar.gz | tar -xz --strip-components=1 -C "$SCRIPT_DIR"
 fi
-
-# ---------------------------------------------------------------------------
-# Source bash-tui-toolkit
-# ---------------------------------------------------------------------------
 
 if [[ ! -f "$SCRIPT_DIR/bash-tui-toolkit.bash" ]]; then
     show_info "Downloading bash-tui-toolkit..."
@@ -45,10 +33,7 @@ fi
 
 source "$SCRIPT_DIR/bash-tui-toolkit.bash"
 
-# ---------------------------------------------------------------------------
 # Build script list
-# ---------------------------------------------------------------------------
-
 modules=()
 names=()
 descriptions=()
@@ -73,10 +58,6 @@ if [[ "${#modules[@]}" -eq 0 ]]; then
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
-
 clear
 
 echo -e "
@@ -94,10 +75,7 @@ $(tput sgr0)
 -------------------------------------------------------------------------
 "
 
-# ---------------------------------------------------------------------------
 # Select scripts
-# ---------------------------------------------------------------------------
-
 selected="$(checkbox "Select scripts to install (Space)" "${display[@]}")"
 
 echo
@@ -107,10 +85,7 @@ if [[ -z "$selected" ]]; then
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
 # Show confirmation
-# ---------------------------------------------------------------------------
-
 echo "The following scripts will be installed:"
 echo
 
@@ -124,8 +99,6 @@ for index in $selected; do
     else
         echo "  $(tput setaf 2)INSTALL$(tput sgr0) $filename"
     fi
-
-    echo "           $desc"
 done
 
 echo
@@ -140,10 +113,7 @@ if [[ "$confirmed" != 1 ]]; then
     exit 0
 fi
 
-# ---------------------------------------------------------------------------
 # Install
-# ---------------------------------------------------------------------------
-
 mkdir -p "$BIN_DIR"
 
 for index in $selected; do
@@ -160,13 +130,7 @@ for index in $selected; do
     echo "$(tput setaf 2)$(tput bold)✓ $filename installed$(tput sgr0)"
 done
 
-# ---------------------------------------------------------------------------
 # PATH check
-# ---------------------------------------------------------------------------
-
-echo
-echo "-------------------------------------------------------------------------"
-
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     show_info "$BIN_DIR is not currently in your PATH."
 
@@ -175,8 +139,6 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo
     echo '    export PATH="$HOME/.local/bin:$PATH"'
     echo
-else
-    show_info "$BIN_DIR is already in PATH"
 fi
 
 show_info "Installation complete!"
