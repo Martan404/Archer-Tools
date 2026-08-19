@@ -10,9 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QUIVER="${SCRIPT_DIR}/quiver"
 BIN_DIR="${HOME}/.local/bin"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
-
 show_info() {
     echo "$(tput setaf 4)$(tput bold)> $*$(tput sgr0)"
 }
@@ -136,7 +133,7 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     show_info "$BIN_DIR is not currently in your PATH."
 
     echo
-    echo "Add this to your shell configuration:"
+    echo "Add this to your $HOME/.bashrc file:"
     echo
     echo '    export PATH="$HOME/.local/bin:$PATH"'
     echo
